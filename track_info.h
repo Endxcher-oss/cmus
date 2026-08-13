@@ -34,6 +34,7 @@ struct track_info {
 	time_t mtime;
 	int duration;
 	long bitrate;
+	int sample_rate;
 	char *codec;
 	char *codec_profile;
 	char *filename;

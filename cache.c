@@ -46,8 +46,8 @@
 
 #define CACHE_RESERVED_PATTERN  	0xff
 
-#define CACHE_ENTRY_USED_SIZE		28
-#define CACHE_ENTRY_RESERVED_SIZE	52
+#define CACHE_ENTRY_USED_SIZE		32
+#define CACHE_ENTRY_RESERVED_SIZE	48
 #define CACHE_ENTRY_TOTAL_SIZE	(CACHE_ENTRY_RESERVED_SIZE + CACHE_ENTRY_USED_SIZE)
 
 // Cmus Track Cache version X + 4 bytes flags
@@ -63,6 +63,7 @@ struct cache_entry {
 	int64_t mtime;
 	int32_t duration;
 	int32_t bitrate;
+	int32_t sample_rate;
 	int32_t bpm;
 
 	// when introducing new fields decrease the reserved space accordingly
@@ -140,6 +141,7 @@ static struct track_info *cache_entry_to_ti(struct cache_entry *e)
 
 	ti->duration = e->duration;
 	ti->bitrate = e->bitrate;
+	ti->sample_rate = e->sample_rate;
 	ti->mtime = e->mtime;
 	ti->play_count = e->play_count;
 	ti->bpm = e->bpm;
@@ -341,6 +343,7 @@ static void write_ti(int fd, struct gbuf *buf, struct track_info *ti, unsigned i
 	e.size = sizeof(e);
 	e.duration = ti->duration;
 	e.bitrate = ti->bitrate;
+	e.sample_rate = ti->sample_rate;
 	e.mtime = ti->mtime;
 	e.play_count = ti->play_count;
 	e.bpm = ti->bpm;
@@ -435,6 +438,7 @@ static struct track_info *ip_get_ti(const char *filename)
 		track_info_set_comments(ti, comments);
 		ti->duration = ip_duration(ip);
 		ti->bitrate = ip_bitrate(ip);
+		ti->sample_rate = sf_get_rate(ip_get_sf(ip));
 		ti->codec = ip_codec(ip);
 		ti->codec_profile = ip_codec_profile(ip);
 		ti->mtime = ip_is_remote(ip) ? -1 : file_get_mtime(filename);

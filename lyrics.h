@@ -42,7 +42,7 @@ struct lyrics {
 int lyrics_load(const struct track_info *ti, struct lyrics *lyrics);
 void lyrics_free(struct lyrics *lyrics);
 
-/* current line to display for playback position @pos_sec */
-const char *lyrics_get_line(const struct lyrics *lyrics, int pos_sec);
+/* current line to display for playback position @pos_ms (milliseconds) */
+const char *lyrics_get_line(const struct lyrics *lyrics, int pos_ms);
 
 #endif

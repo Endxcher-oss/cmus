@@ -371,16 +371,15 @@ void lyrics_free(struct lyrics *lyrics)
 	lyrics->synced = false;
 }
 
-const char *lyrics_get_line(const struct lyrics *lyrics, int pos_sec)
+const char *lyrics_get_line(const struct lyrics *lyrics, int pos_ms)
 {
-	int pos_ms, lo, hi, found = 0;
+	int lo, hi, found = 0;
 
 	if (lyrics->nr_lines <= 0)
 		return NULL;
 	if (!lyrics->synced)
 		return lyrics->lines[0].text;
 
-	pos_ms = pos_sec * 1000;
 	if (pos_ms < lyrics->lines[0].msec)
 		return lyrics->lines[0].text;
 

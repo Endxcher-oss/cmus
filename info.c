@@ -17,6 +17,7 @@
  */
 
 #include "info.h"
+#include "cache.h"
 #include "player.h"
 #include "track_info.h"
 #include "keyval.h"
@@ -160,35 +161,53 @@ void info_update(int width)
 		info_add("Album: %s", ti->album ? ti->album : "(none)");
 		info_add("Album Artist: %s", ti->albumartist ? ti->albumartist : "(none)");
 		info_add("Genre: %s", ti->genre ? ti->genre : "(none)");
-		if (ti->date)
+		if (ti->date > 0)
 			info_add("Date: %d", ti->date);
-		if (ti->tracknumber)
+		if (ti->tracknumber > 0)
 			info_add("Track: %d", ti->tracknumber);
-		if (ti->discnumber)
+		if (ti->discnumber > 0)
 			info_add("Disc: %d", ti->discnumber);
 		info_add("Duration: %d:%02d", ti->duration / 60, ti->duration % 60);
-		if (ti->bitrate > 0)
-			info_add("Bitrate: %ld kbps", (long) (ti->bitrate / 1000. + 0.5));
-		if (ti->codec)
-			info_add("Codec: %s", ti->codec);
 		if (ti->codec_profile)
 			info_add("Codec Profile: %s", ti->codec_profile);
+
+		int sample_rate = ti->sample_rate;
+		if (sample_rate <= 0 && ti->filename && !is_url(ti->filename)) {
+			struct track_info *fresh = cache_get_ti(ti->filename, 1);
+
+			if (fresh) {
+				if (fresh->sample_rate > 0)
+					sample_rate = fresh->sample_rate;
+				track_info_unref(fresh);
+			}
+		}
+		struct gbuf codec_buf = { gbuf_empty_buffer, 0, 0 };
+		int n = 0;
+		if (ti->codec)
+			gbuf_addf(&codec_buf, "%s%s", n++ ? ", " : "", ti->codec);
+		if (sample_rate > 0)
+			gbuf_addf(&codec_buf, "%s%d Hz", n++ ? ", " : "", sample_rate);
+		if (ti->bitrate > 0)
+			gbuf_addf(&codec_buf, "%s%ld kbps", n++ ? ", " : "",
+					(long) (ti->bitrate / 1000. + 0.5));
+		if (n > 0)
+			info_add("Codec: %s", codec_buf.buffer);
+		gbuf_free(&codec_buf);
+
 		info_add("Filename: %s", ti->filename);
 
 		if (ti->comments) {
-			int first = 1;
 			int i;
 
 			for (i = 0; ti->comments[i].key; i++) {
 				if (info_is_core_key(ti->comments[i].key))
 					continue;
-				if (first) {
-					info_add("");
-					info_add("Tags");
-					info_add("----");
-					first = 0;
+				if (!strcasecmp(ti->comments[i].key, "lyrics")) {
+					info_add("Lyrics:");
+					info_add("%s", ti->comments[i].val);
+				} else {
+					info_add("%s: %s", ti->comments[i].key, ti->comments[i].val);
 				}
-				info_add("%s: %s", ti->comments[i].key, ti->comments[i].val);
 			}
 		}
 	}

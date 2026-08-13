@@ -136,6 +136,28 @@ static bool lyrics_hint_active(void)
 	return lyrics_hint_time != 0 && time(NULL) - lyrics_hint_time < 3;
 }
 
+/* sub-second lyric position: interpolated from a wall clock anchored at
+ * each 1 Hz position update from the player
+ */
+static struct timespec lyric_anchor;
+static int lyric_anchor_pos_ms;
+static bool lyric_anchor_valid;
+static const char *lyric_last_line;
+
+static int lyric_pos_ms(void)
+{
+	struct timespec now;
+	int64_t elapsed;
+
+	if (!lyric_anchor_valid || player_info.status != PLAYER_STATUS_PLAYING)
+		return player_info.pos * 1000;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	elapsed = (int64_t)(now.tv_sec - lyric_anchor.tv_sec) * 1000 +
+		(now.tv_nsec - lyric_anchor.tv_nsec) / 1000000;
+	return lyric_anchor_pos_ms + (int)elapsed;
+}
+
 static char *server_address = NULL;
 
 /* used for messages to the client */
@@ -1342,7 +1364,7 @@ static void do_update_commandline(void)
 	bkgdset(pairs[CURSED_COMMANDLINE]);
 	if (input_mode == NORMAL_MODE) {
 		if (lyrics && cur_lyrics_loaded) {
-			const char *text = lyrics_get_line(&cur_lyrics, player_info.pos);
+			const char *text = lyrics_get_line(&cur_lyrics, lyric_pos_ms());
 
 			if (text && *text) {
 				int width = win_w;
@@ -2082,6 +2104,8 @@ static void update(void)
 		lyrics_free(&cur_lyrics);
 		cur_lyrics_loaded = player_info.ti && lyrics_load(player_info.ti, &cur_lyrics) == 0;
 		lyrics_hint_time = player_info.ti ? time(NULL) : 0;
+		lyric_anchor_valid = false;
+		lyric_last_line = NULL;
 		needs_command_update = 1;
 		if (cur_view == INFO_VIEW)
 			info_update(win_w);
@@ -2090,8 +2114,26 @@ static void update(void)
 		needs_title_update = 1;
 	if (player_info.position_changed || player_info.status_changed) {
 		needs_status_update = 1;
+		if (player_info.status == PLAYER_STATUS_PLAYING) {
+			lyric_anchor_pos_ms = player_info.pos * 1000;
+			clock_gettime(CLOCK_MONOTONIC, &lyric_anchor);
+			lyric_anchor_valid = true;
+		} else {
+			lyric_anchor_valid = false;
+		}
 		if (lyrics && (cur_lyrics_loaded || lyrics_hint_time != 0))
 			needs_command_update = 1;
+	}
+	/* while playing a track with synced lyrics, refresh the lyric line at
+	 * the main loop's cadence (~10 Hz) based on the interpolated position
+	 */
+	if (lyrics && cur_lyrics_loaded && player_info.status == PLAYER_STATUS_PLAYING) {
+		const char *line = lyrics_get_line(&cur_lyrics, lyric_pos_ms());
+
+		if (line != lyric_last_line) {
+			lyric_last_line = line;
+			needs_command_update = 1;
+		}
 	}
 	switch (cur_view) {
 	case TREE_VIEW:
