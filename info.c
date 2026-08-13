@@ -1,0 +1,227 @@
+/*
+ * Copyright 2008-2013 Various Authors
+ * Copyright 2026 Various Authors
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "info.h"
+#include "player.h"
+#include "track_info.h"
+#include "keyval.h"
+#include "uchar.h"
+#include "xmalloc.h"
+#include "gbuf.h"
+#include "utils.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <strings.h>
+#include <stdarg.h>
+
+struct window *info_win;
+struct searchable *info_searchable;
+LIST_HEAD(info_head);
+
+static inline void info_entry_to_iter(struct info_entry *e, struct iter *iter)
+{
+	iter->data0 = &info_head;
+	iter->data1 = e;
+	iter->data2 = NULL;
+}
+
+static GENERIC_ITER_PREV(info_get_prev, struct info_entry, node)
+static GENERIC_ITER_NEXT(info_get_next, struct info_entry, node)
+
+static int info_search_get_current(void *data, struct iter *iter, enum search_direction dir)
+{
+	return window_get_sel(info_win, iter);
+}
+
+static int info_search_matches(void *data, struct iter *iter, const char *text)
+{
+	struct info_entry *e = iter_to_info_entry(iter);
+
+	return u_strcasestr(e->text, text) != NULL;
+}
+
+static const struct searchable_ops info_search_ops = {
+	.get_prev = info_get_prev,
+	.get_next = info_get_next,
+	.get_current = info_search_get_current,
+	.matches = info_search_matches
+};
+
+static int info_width = 80;
+
+static void info_add_row(const char *text)
+{
+	struct info_entry *e = xnew(struct info_entry, 1);
+
+	e->text = xstrdup(text);
+	list_add_tail(&e->node, &info_head);
+}
+
+static void info_add_wrapped(const char *text)
+{
+	struct gbuf cur = { gbuf_empty_buffer, 0, 0 };
+	int i = 0;
+	int w = 0;
+
+	while (text[i]) {
+		uchar u;
+		int cw;
+
+		if (text[i] == '\r') {
+			i++;
+			continue;
+		}
+		if (text[i] == '\n') {
+			info_add_row(cur.buffer);
+			gbuf_clear(&cur);
+			w = 0;
+			i++;
+			continue;
+		}
+		u = u_get_char(text, &i);
+		cw = u_char_width(u);
+		if (w > 0 && w + cw > info_width) {
+			info_add_row(cur.buffer);
+			gbuf_clear(&cur);
+			w = 0;
+		}
+		gbuf_add_uchar(&cur, u);
+		w += cw;
+	}
+	if (cur.len > 0)
+		info_add_row(cur.buffer);
+	gbuf_free(&cur);
+}
+
+static void info_add(const char *fmt, ...)
+{
+	struct gbuf buf = { gbuf_empty_buffer, 0, 0 };
+	va_list ap;
+
+	va_start(ap, fmt);
+	gbuf_vaddf(&buf, fmt, ap);
+	va_end(ap);
+
+	info_add_wrapped(buf.buffer);
+	gbuf_free(&buf);
+}
+
+static int info_is_core_key(const char *key)
+{
+	return !strcasecmp(key, "title") ||
+		!strcasecmp(key, "artist") ||
+		!strcasecmp(key, "album") ||
+		!strcasecmp(key, "albumartist") ||
+		!strcasecmp(key, "genre") ||
+		!strcasecmp(key, "date") ||
+		!strcasecmp(key, "tracknumber") ||
+		!strcasecmp(key, "discnumber") ||
+		!strcasecmp(key, "comment");
+}
+
+void info_update(int width)
+{
+	struct info_entry *e;
+	struct list_head *item, *tmp;
+	struct track_info *ti = player_info.ti;
+
+	info_width = width - 1;
+
+	window_set_empty(info_win);
+
+	list_for_each_safe(item, tmp, &info_head) {
+		e = container_of(item, struct info_entry, node);
+		list_del(&e->node);
+		free(e->text);
+		free(e);
+	}
+
+	if (!ti) {
+		info_add("No track playing");
+	} else {
+		info_add("Title: %s", ti->title ? ti->title : "(none)");
+		info_add("Artist: %s", ti->artist ? ti->artist : "(none)");
+		info_add("Album: %s", ti->album ? ti->album : "(none)");
+		info_add("Album Artist: %s", ti->albumartist ? ti->albumartist : "(none)");
+		info_add("Genre: %s", ti->genre ? ti->genre : "(none)");
+		if (ti->date)
+			info_add("Date: %d", ti->date);
+		if (ti->tracknumber)
+			info_add("Track: %d", ti->tracknumber);
+		if (ti->discnumber)
+			info_add("Disc: %d", ti->discnumber);
+		info_add("Duration: %d:%02d", ti->duration / 60, ti->duration % 60);
+		if (ti->bitrate > 0)
+			info_add("Bitrate: %ld kbps", (long) (ti->bitrate / 1000. + 0.5));
+		if (ti->codec)
+			info_add("Codec: %s", ti->codec);
+		if (ti->codec_profile)
+			info_add("Codec Profile: %s", ti->codec_profile);
+		info_add("Filename: %s", ti->filename);
+
+		if (ti->comments) {
+			int first = 1;
+			int i;
+
+			for (i = 0; ti->comments[i].key; i++) {
+				if (info_is_core_key(ti->comments[i].key))
+					continue;
+				if (first) {
+					info_add("");
+					info_add("Tags");
+					info_add("----");
+					first = 0;
+				}
+				info_add("%s: %s", ti->comments[i].key, ti->comments[i].val);
+			}
+		}
+	}
+
+	window_set_contents(info_win, &info_head);
+	window_changed(info_win);
+}
+
+void info_init(void)
+{
+	struct iter iter;
+
+	info_win = window_new(info_get_prev, info_get_next);
+	window_set_empty(info_win);
+
+	iter.data0 = &info_head;
+	iter.data1 = NULL;
+	iter.data2 = NULL;
+	info_searchable = searchable_new(NULL, &iter, &info_search_ops);
+}
+
+void info_exit(void)
+{
+	struct info_entry *e;
+	struct list_head *item, *tmp;
+
+	list_for_each_safe(item, tmp, &info_head) {
+		e = container_of(item, struct info_entry, node);
+		list_del(&e->node);
+		free(e->text);
+		free(e);
+	}
+
+	searchable_free(info_searchable);
+	window_free(info_win);
+}

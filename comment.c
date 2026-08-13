@@ -211,6 +211,7 @@ static const char *interesting[] = {
 	"arranger", "composer", "conductor", "lyricist", "performer",
 	"remixer", "label", "publisher", "work", "opus",
 	"subtitle", "media",
+	"lyrics",
 	NULL
 };
 
@@ -267,6 +268,10 @@ int comments_add(struct growing_keyvals *c, const char *key, char *val)
 		int r = comments_add_const(c, "lyricist", val);
 		return comments_add(c, "composer", val) && r;
 	}
+
+	/* libavformat exposes ID3 USLT frames as "lyrics-<language>" */
+	if (!strncasecmp(key, "lyrics-", 7))
+		key = "lyrics";
 
 	key = fix_key(key);
 	if (!key) {

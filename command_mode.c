@@ -45,6 +45,7 @@
 #include "debug.h"
 #include "load_dir.h"
 #include "help.h"
+#include "info.h"
 #include "op.h"
 #include "mpris.h"
 #include "job.h"
@@ -350,6 +351,8 @@ struct window *current_win(void)
 		return browser_win;
 	case HELP_VIEW:
 		return help_win;
+	case INFO_VIEW:
+		return info_win;
 	case FILTERS_VIEW:
 	default:
 		return filters_win;
@@ -1023,6 +1026,8 @@ static void cmd_run(char *arg)
 	case QUEUE_VIEW:
 		_editable_for_each_sel(&pq_editable, add_ti, &sel, 0);
 		break;
+	case INFO_VIEW:
+		break;
 	}
 
 	if (sel.tis_nr == 0) {
@@ -1088,6 +1093,8 @@ static void cmd_run(char *arg)
 
 				/* we don't own sel.tis anymore! */
 				return;
+			case INFO_VIEW:
+				break;
 			}
 		}
 	}
@@ -1158,6 +1165,8 @@ static void cmd_echo(char *arg)
 		break;
 	case QUEUE_VIEW:
 		_editable_for_each_sel(&pq_editable, get_one_ti, &sel_ti, 0);
+		break;
+	case INFO_VIEW:
 		break;
 	}
 
@@ -1471,6 +1480,8 @@ static void cmd_rand(char *arg)
 	case QUEUE_VIEW:
 		editable_rand(&pq_editable);
 		break;
+	case INFO_VIEW:
+		break;
 	}
 }
 
@@ -1670,6 +1681,8 @@ static void cmd_win_activate(char *arg)
 	case HELP_VIEW:
 		help_select();
 		break;
+	case INFO_VIEW:
+		break;
 	}
 
 	if (info) {
@@ -1697,6 +1710,8 @@ static void cmd_win_mv_after(char *arg)
 	case QUEUE_VIEW:
 		editable_move_after(&pq_editable);
 		break;
+	case INFO_VIEW:
+		break;
 	}
 }
 
@@ -1711,6 +1726,8 @@ static void cmd_win_mv_before(char *arg)
 		break;
 	case QUEUE_VIEW:
 		editable_move_before(&pq_editable);
+		break;
+	case INFO_VIEW:
 		break;
 	}
 }
@@ -1739,6 +1756,8 @@ static void cmd_win_remove(char *arg)
 	case HELP_VIEW:
 		help_remove();
 		break;
+	case INFO_VIEW:
+		break;
 	}
 }
 
@@ -1753,6 +1772,8 @@ static void cmd_win_sel_cur(char *arg)
 		break;
 	case PLAYLIST_VIEW:
 		pl_select_playing_track();
+		break;
+	case INFO_VIEW:
 		break;
 	}
 }
@@ -1777,6 +1798,8 @@ static void cmd_win_toggle(char *arg)
 		break;
 	case HELP_VIEW:
 		help_toggle();
+		break;
+	case INFO_VIEW:
 		break;
 	}
 }
@@ -1901,6 +1924,8 @@ static void cmd_win_update(char *arg)
 		break;
 	case BROWSER_VIEW:
 		browser_reload();
+		break;
+	case INFO_VIEW:
 		break;
 	}
 }

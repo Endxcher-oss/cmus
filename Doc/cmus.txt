@@ -45,7 +45,7 @@ and can be controlled externally using *cmus-remote*(1).
 
 @h1 VIEWS
 
-There are 7 views in cmus. Press keys 1-7 to change active view.
+There are 8 views in cmus. Press keys 1-8 to change active view.
 
 Library view (1)
 	Displays all tracks in the *library*. Tracks are sorted and displayed in
@@ -75,6 +75,12 @@ Settings view (7)
 	Lists keybindings, unbound commands and options. Remove bindings with
 	*D* or *del*, change bindings and variables with *enter*, and toggle
 	variables with *space*.
+
+Track info view (8)
+	Displays the metadata of the currently playing track, such as title,
+	artist, album, duration and codec, followed by any remaining tags
+	(e.g. *lyrics*, *composer*). The contents are refreshed when the
+	playing track changes.
 
 @h1 COMMAND LINE
 
@@ -256,6 +262,7 @@ I                       echo {}
 5                       view browser
 6                       view filters
 7                       view settings
+8                       view info
 
 mouse_scroll_up_title   left-view
 mouse_scroll_down_title right-view
@@ -701,7 +708,7 @@ update-cache [-f]
 version
 	Prints the version information.
 
-view <name or 1-7>
+view <name or 1-8>
 	Changes the active view.
 
 	Do not use this in `$XDG_CONFIG_HOME/cmus/rc` to change the starting
@@ -1231,6 +1238,23 @@ show_playback_position (true)
 
 show_remaining_time (false)
 	Display remaining time instead of elapsed time.
+
+lyrics (true)
+	Display the lyrics of the currently playing track in the bottom line
+	when it is not otherwise used (no command is being typed and no
+	information/error message is shown).
+
+	Lyrics are first taken from the track's embedded tags (ID3 "USLT"
+	frames for MP3, "lyrics" Vorbis comment for FLAC) and, if none are
+	found, from a file with the same name as the track and a *.lrc* or
+	*.txt* extension in the same directory.
+
+	For lyrics with timestamps (LRC format), the line matching the current
+	playback position is shown; otherwise the first line is shown,
+	truncated to the width of the screen.
+
+	If no lyrics are found for the playing track, a short notice is shown
+	for three seconds in the bottom line.
 
 shuffle (off) [off, tracks, albums]
 	@li *off*

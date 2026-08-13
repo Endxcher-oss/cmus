@@ -52,6 +52,8 @@
 #include "mpris.h"
 #include "locking.h"
 #include "pl_env.h"
+#include "lyrics.h"
+#include "info.h"
 #ifdef HAVE_CONFIG
 #include "config/curses.h"
 #include "config/iconv.h"
@@ -121,6 +123,18 @@ static time_t error_time = 0;
 /* info messages are displayed in different color */
 static int msg_is_error;
 static int error_count = 0;
+
+/* lyrics for the currently playing track */
+static struct lyrics cur_lyrics;
+static bool cur_lyrics_loaded;
+
+/* time when the last track with no lyrics started; 0 if no hint */
+static time_t lyrics_hint_time = 0;
+
+static bool lyrics_hint_active(void)
+{
+	return lyrics_hint_time != 0 && time(NULL) - lyrics_hint_time < 3;
+}
 
 static char *server_address = NULL;
 
@@ -939,6 +953,29 @@ static void print_help(struct window *win, int row, struct iter *iter)
 	dump_print_buffer(row + 1, 0);
 }
 
+static void print_info(struct window *win, int row, struct iter *iter)
+{
+	struct iter sel;
+	int selected;
+	int active = 1;
+	char buf[1024];
+	const struct info_entry *e = iter_to_info_entry(iter);
+
+	window_get_sel(win, &sel);
+	selected = iters_equal(iter, &sel);
+	bkgdset(pairs[(active << 2) | (selected << 1)]);
+
+	if (selected) {
+		cursor_x = 0;
+		cursor_y = 1 + row;
+	}
+
+	strscpy(buf, e->text, sizeof(buf));
+	format_str(&print_buffer, buf, win_w - 1);
+	gbuf_add_ch(&print_buffer, ' ');
+	dump_print_buffer(row + 1, 0);
+}
+
 static void update_window(struct window *win, int x, int y, int w, const char *title,
 		void (*print)(struct window *, int, struct iter *))
 {
@@ -1164,6 +1201,11 @@ static void update_help_window(void)
 	update_window(help_win, 0, 0, win_w, "Settings", print_help);
 }
 
+static void update_info_window(void)
+{
+	update_window(info_win, 0, 0, win_w, "Track Info", print_info);
+}
+
 static void update_pl_view(int full)
 {
 	current_track = pl_get_playing_track();
@@ -1205,6 +1247,9 @@ static void do_update_view(int full)
 		break;
 	case HELP_VIEW:
 		update_help_window();
+		break;
+	case INFO_VIEW:
+		update_info_window();
 		break;
 	}
 }
@@ -1296,6 +1341,33 @@ static void do_update_commandline(void)
 	}
 	bkgdset(pairs[CURSED_COMMANDLINE]);
 	if (input_mode == NORMAL_MODE) {
+		if (lyrics && cur_lyrics_loaded) {
+			const char *text = lyrics_get_line(&cur_lyrics, player_info.pos);
+
+			if (text && *text) {
+				int width = win_w;
+
+				gbuf_clear(&print_buffer);
+				gbuf_add_ustr(&print_buffer, text, &width);
+				dump_buffer(print_buffer.buffer);
+				gbuf_clear(&print_buffer);
+				clrtoeol();
+				return;
+			}
+		}
+		if (lyrics && lyrics_hint_active()) {
+			const char *hint = "No lyrics found for this track";
+			int width = win_w;
+
+			gbuf_clear(&print_buffer);
+			gbuf_add_ustr(&print_buffer, hint, &width);
+			dump_buffer(print_buffer.buffer);
+			gbuf_clear(&print_buffer);
+			clrtoeol();
+			return;
+		}
+		/* hint expired or lyrics disabled: stop tracking it */
+		lyrics_hint_time = 0;
 		clrtoeol();
 		return;
 	}
@@ -1648,6 +1720,9 @@ void search_not_found(void)
 		case HELP_VIEW:
 			what = "Binding/command/option";
 			break;
+		case INFO_VIEW:
+			what = "Track";
+			break;
 		}
 	} else {
 		switch (cur_view) {
@@ -1665,6 +1740,9 @@ void search_not_found(void)
 			break;
 		case HELP_VIEW:
 			what = "Binding/command/option";
+			break;
+		case INFO_VIEW:
+			what = "Track";
 			break;
 		}
 	}
@@ -1710,6 +1788,10 @@ void set_view(int view)
 	case HELP_VIEW:
 		searchable = help_searchable;
 		update_help_window();
+		break;
+	case INFO_VIEW:
+		searchable = info_searchable;
+		info_update(win_w);
 		break;
 	}
 
@@ -1952,6 +2034,7 @@ static void update_window_size(void)
 		window_set_nr_rows(pq_editable.shared->win, h - 1);
 		window_set_nr_rows(filters_win, h - 1);
 		window_set_nr_rows(help_win, h - 1);
+		window_set_nr_rows(info_win, h - 1);
 		window_set_nr_rows(browser_win, h - 1);
 	}
 	clearok(curscr, TRUE);
@@ -1971,6 +2054,8 @@ static void update(void)
 		needs_title_update = 1;
 		needs_command_update = 1;
 		first_update = false;
+		if (cur_view == INFO_VIEW)
+			info_update(win_w);
 	}
 
 	if (needs_to_resize) {
@@ -1978,6 +2063,8 @@ static void update(void)
 		needs_title_update = 1;
 		needs_status_update = 1;
 		needs_command_update = 1;
+		if (cur_view == INFO_VIEW)
+			info_update(win_w);
 	}
 
 	if (player_info.status_changed)
@@ -1992,11 +2079,20 @@ static void update(void)
 	if (player_info.file_changed) {
 		needs_title_update = 1;
 		needs_status_update = 1;
+		lyrics_free(&cur_lyrics);
+		cur_lyrics_loaded = player_info.ti && lyrics_load(player_info.ti, &cur_lyrics) == 0;
+		lyrics_hint_time = player_info.ti ? time(NULL) : 0;
+		needs_command_update = 1;
+		if (cur_view == INFO_VIEW)
+			info_update(win_w);
 	}
 	if (player_info.metadata_changed)
 		needs_title_update = 1;
-	if (player_info.position_changed || player_info.status_changed)
+	if (player_info.position_changed || player_info.status_changed) {
 		needs_status_update = 1;
+		if (lyrics && (cur_lyrics_loaded || lyrics_hint_time != 0))
+			needs_command_update = 1;
+	}
 	switch (cur_view) {
 	case TREE_VIEW:
 		needs_view_update += lib_tree_win->changed || lib_track_win->changed;
@@ -2018,6 +2114,9 @@ static void update(void)
 		break;
 	case HELP_VIEW:
 		needs_view_update += help_win->changed;
+		break;
+	case INFO_VIEW:
+		needs_view_update += info_win->changed;
 		break;
 	}
 
@@ -2469,6 +2568,7 @@ static void init_all(void)
 	browser_init();
 	filters_init();
 	help_init();
+	info_init();
 	cmdline_init();
 	commands_init();
 	search_mode_init();
@@ -2545,6 +2645,7 @@ static void exit_all(void)
 	search_mode_exit();
 	filters_exit();
 	help_exit();
+	info_exit();
 	browser_exit();
 	mpris_free();
 }

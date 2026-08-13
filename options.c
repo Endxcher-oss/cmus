@@ -68,6 +68,7 @@ int show_hidden = 0;
 int show_current_bitrate = 0;
 int show_playback_position = 1;
 int show_remaining_time = 0;
+int lyrics = 1;
 int set_term_title = 1;
 int wrap_search = 1;
 int play_library = 1;
@@ -713,7 +714,7 @@ static void toggle_confirm_run(void *data)
 }
 
 const char * const view_names[NR_VIEWS + 1] = {
-	"tree", "sorted", "playlist", "queue", "browser", "filters", "settings", NULL
+	"tree", "sorted", "playlist", "queue", "browser", "filters", "settings", "info", NULL
 };
 
 static void get_play_library(void *data, char *buf, size_t size)
@@ -1086,6 +1087,23 @@ static void toggle_show_playback_position(void *data)
 {
 	show_playback_position ^= 1;
 	update_statusline();
+}
+
+static void get_lyrics(void *data, char *buf, size_t size)
+{
+	strscpy(buf, bool_names[lyrics], size);
+}
+
+static void set_lyrics(void *data, const char *buf)
+{
+	if (parse_bool(buf, &lyrics))
+		update_full();
+}
+
+static void toggle_lyrics(void *data)
+{
+	lyrics ^= 1;
+	update_full();
 }
 
 static void get_show_remaining_time(void *data, char *buf, size_t size)
@@ -1687,6 +1705,7 @@ static const struct {
 	DT(block_key_paste)
 	DT(progress_bar)
 	DT(search_resets_position)
+	DT(lyrics)
 	{ NULL, NULL, NULL, NULL, 0 }
 };
 

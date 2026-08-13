@@ -265,6 +265,7 @@ const char * const id3_key_names[NUM_ID3_KEYS] = {
 	"musicbrainz_trackid",
 	"media",
 	"bpm",
+	"lyrics",
 };
 
 static int utf16_is_lsurrogate(uchar uch)
@@ -852,6 +853,33 @@ static void decode_comment(struct id3tag *id3, const char *buf, int len, int enc
 	add_v2(id3, ID3_COMMENT, out);
 }
 
+static void decode_lyrics(struct id3tag *id3, const char *buf, int len, int encoding)
+{
+	int slen;
+	char *out;
+
+	if (len <= 3)
+		return;
+
+	/* skip language */
+	buf += 3;
+	len -= 3;
+
+	/* "Short content description" part of USLT frame */
+	slen = id3_skiplen(buf, len, encoding);
+	if (slen >= len)
+		return;
+
+	buf += slen;
+	len -= slen;
+
+	out = decode_str(buf, len, encoding);
+	if (!out)
+		return;
+
+	add_v2(id3, ID3_LYRICS, out);
+}
+
 /*
  * From http://id3.org/id3v2.4.0-frames:
  *
@@ -1009,6 +1037,8 @@ static void v2_add_frame(struct id3tag *id3, struct v2_frame_header *fh, const c
 		decode_comment(id3, buf, len, encoding);
 	} else if (!strncmp(fh->id, "COM", 3)) {
 		decode_comment(id3, buf, len, encoding);
+	} else if (!strncmp(fh->id, "USLT", 4)) {
+		decode_lyrics(id3, buf, len, encoding);
 	}
 }
 
