@@ -47,4 +47,11 @@ void info_exit(void);
  */
 void info_update(int width);
 
+/* If the currently playing file has changed on disk (mtime), re-read its
+ * metadata and swap in a fresh track_info everywhere (cache, library,
+ * playlists, queue and the player) so external tag edits show up without
+ * running ":update-cache -f".  Cheap no-op when the file is unchanged or
+ * not a regular local file. */
+void info_refresh_if_changed(void);
+
 #endif

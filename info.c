@@ -18,7 +18,11 @@
 
 #include "info.h"
 #include "cache.h"
+#include "editable.h"
+#include "lib.h"
+#include "play_queue.h"
 #include "player.h"
+#include "pl.h"
 #include "track_info.h"
 #include "keyval.h"
 #include "uchar.h"
@@ -30,6 +34,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdarg.h>
+#include <sys/stat.h>
 
 struct window *info_win;
 struct searchable *info_searchable;
@@ -136,13 +141,47 @@ static int info_is_core_key(const char *key)
 		!strcasecmp(key, "comment");
 }
 
+void info_refresh_if_changed(void)
+{
+	struct track_info *ti = player_info.ti;
+	struct track_info *fresh;
+	struct stat st;
+
+	if (!ti || !ti->filename || is_url(ti->filename))
+		return;
+	if (stat(ti->filename, &st) || st.st_mtime == ti->mtime)
+		return;
+
+	cache_lock();
+	fresh = cache_get_ti(ti->filename, 1);
+	cache_unlock();
+	if (!fresh)
+		return;
+
+	/* keep every view of this track consistent, mirroring
+	 * job_handle_update_cache_result() but for a single file */
+	if (lib_remove(ti))
+		lib_add_track(fresh, NULL);
+	pl_update_track(ti, fresh);
+	editable_update_track(&pq_editable, ti, fresh);
+
+	if (player_info.ti == ti) {
+		track_info_ref(fresh);
+		player_file_changed(fresh);
+	}
+	track_info_unref(fresh);
+}
+
 void info_update(int width)
 {
 	struct info_entry *e;
 	struct list_head *item, *tmp;
-	struct track_info *ti = player_info.ti;
+	struct track_info *ti;
 
 	info_width = width - 1;
+
+	info_refresh_if_changed();
+	ti = player_info.ti;
 
 	window_set_empty(info_win);
 

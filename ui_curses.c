@@ -2158,6 +2158,7 @@ static void update(void)
 		needs_view_update += help_win->changed;
 		break;
 	case INFO_VIEW:
+		info_refresh_if_changed();
 		needs_view_update += info_win->changed;
 		break;
 	}
