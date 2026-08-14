@@ -120,6 +120,11 @@ void lib_set_filter(struct expr *expr);
 void lib_set_live_filter(const char *str);
 void lib_set_add_filter(struct expr *expr);
 int lib_remove(struct track_info *ti);
+/* Replace @old with @new in the library (hash, tree and sorted views),
+ * keeping the navigation anchor lib_cur_track on the same track so that
+ * next/prev continue from where they were.  Returns 1 if the track was
+ * in the library. */
+int lib_replace_track(struct track_info *old, struct track_info *new);
 void lib_clear_store(void);
 void lib_reshuffle(void);
 void lib_sort_artists(void);

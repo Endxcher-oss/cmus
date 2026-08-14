@@ -844,6 +844,43 @@ int lib_remove(struct track_info *ti)
 	return 0;
 }
 
+int lib_replace_track(struct track_info *old, struct track_info *new)
+{
+	struct simple_track *track;
+	struct tree_track *tt;
+	int found = 0;
+
+	if (!new)
+		return 0;
+
+	list_for_each_entry(track, &lib_editable.head, node) {
+		if (track->info == old) {
+			found = 1;
+			break;
+		}
+	}
+	if (!found)
+		return 0;
+
+	tt = (struct tree_track *)track;
+	if (lib_cur_track == tt) {
+		/* lib_remove() clears lib_cur_track; restore it onto the
+		 * replacement track so next/prev keep working */
+		lib_remove(old);
+		lib_add_track(new, NULL);
+		lib_cur_track = lib_find_track(new);
+		if (follow) {
+			tree_sel_current(auto_expand_albums_follow);
+			sorted_sel_current();
+		}
+		all_wins_changed();
+	} else {
+		lib_remove(old);
+		lib_add_track(new, NULL);
+	}
+	return 1;
+}
+
 void lib_clear_store(void)
 {
 	int i;

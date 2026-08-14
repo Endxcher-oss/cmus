@@ -588,8 +588,8 @@ static void job_handle_update_cache_result(struct job_result *res)
 			continue;
 
 		new = old->next;
-		if (lib_remove(old) && new)
-			lib_add_track(new, NULL);
+		if (new)
+			lib_replace_track(old, new);
 		pl_update_track(old, new);
 		editable_update_track(&pq_editable, old, new);
 		if (player_info.ti == old && new) {

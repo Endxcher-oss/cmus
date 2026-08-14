@@ -160,8 +160,7 @@ void info_refresh_if_changed(void)
 
 	/* keep every view of this track consistent, mirroring
 	 * job_handle_update_cache_result() but for a single file */
-	if (lib_remove(ti))
-		lib_add_track(fresh, NULL);
+	lib_replace_track(ti, fresh);
 	pl_update_track(ti, fresh);
 	editable_update_track(&pq_editable, ti, fresh);
 
