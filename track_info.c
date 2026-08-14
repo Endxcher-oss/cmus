@@ -56,6 +56,7 @@ struct track_info *track_info_new(const char *filename)
 	ti->play_count = 0;
 	ti->comments = NULL;
 	ti->bpm = -1;
+	ti->sample_rate = -1;
 	ti->codec = NULL;
 	ti->codec_profile = NULL;
 	ti->output_gain = 0;

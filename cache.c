@@ -63,8 +63,14 @@ struct cache_entry {
 	int64_t mtime;
 	int32_t duration;
 	int32_t bitrate;
-	int32_t sample_rate;
 	int32_t bpm;
+	/* append new fields after bpm so that the offsets of the existing
+	 * fields stay the same and cache files written by older versions
+	 * (same CACHE_VERSION) remain readable: the bytes where this field
+	 * lands used to be reserved (0xff), so they read back as -1 and the
+	 * value is refreshed from the file when needed
+	 */
+	int32_t sample_rate;
 
 	// when introducing new fields decrease the reserved space accordingly
 	uint8_t _reserved[CACHE_ENTRY_RESERVED_SIZE];
