@@ -28,6 +28,7 @@
 #include "options.h"
 #include "output.h"
 #include "track_info.h"
+#include "cache.h"
 #include "utils.h"
 #include "uchar.h"
 #include "path.h"
@@ -421,6 +422,27 @@ static int mpris_append_art_fallback(sd_bus_message *reply,
 		free(art);
 		return rc;
 	}
+
+	/* Last resort: force a metadata refresh so embedded art gets extracted
+	 * even if the in-memory/cached track_info predates albumart support. */
+	if (!is_url(ti->filename)) {
+		struct track_info *fresh;
+		struct stat st;
+
+		cache_lock();
+		fresh = cache_get_ti(ti->filename, 1);
+		cache_unlock();
+		if (fresh) {
+			if (fresh->albumart && stat(fresh->albumart, &st) == 0 &&
+					S_ISREG(st.st_mode)) {
+				int rc = mpris_append_art_url(reply, fresh->albumart);
+				track_info_unref(fresh);
+				return rc;
+			}
+			track_info_unref(fresh);
+		}
+	}
+
 	if (mpris_find_sidecar_art(ti->filename, &art)) {
 		int rc = mpris_append_art_url(reply, art);
 		free(art);

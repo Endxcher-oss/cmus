@@ -486,7 +486,9 @@ static int albumart_ensure_dir(void)
 char *albumart_save_data(const char *filename, const void *data, size_t len)
 {
 	char *path;
+	char *tmp;
 	int fd;
+	struct stat st;
 
 	if (!cmus_albumart_dir || !filename || !data || !len)
 		return NULL;
@@ -494,17 +496,36 @@ char *albumart_save_data(const char *filename, const void *data, size_t len)
 		return NULL;
 
 	path = albumart_path_for_track(filename);
-	fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+
+	/* Keep the cached file stable: if it already exists, reuse it instead
+	 * of rewriting it (which would bump mtime on every playback). */
+	if (stat(path, &st) == 0 && S_ISREG(st.st_mode))
+		return path;
+
+	/* Write to a temporary file first and atomically rename it into place,
+	 * so concurrent readers never see a partially written cover. */
+	tmp = xstrjoin(cmus_albumart_dir, "/.albumart-XXXXXX");
+	fd = mkstemp(tmp);
 	if (fd < 0) {
+		free(tmp);
 		free(path);
 		return NULL;
 	}
 	if (write_all(fd, data, len) == -1) {
 		close(fd);
+		unlink(tmp);
+		free(tmp);
 		free(path);
 		return NULL;
 	}
 	close(fd);
+	if (rename(tmp, path) == -1) {
+		unlink(tmp);
+		free(tmp);
+		free(path);
+		return NULL;
+	}
+	free(tmp);
 	return path;
 }
 

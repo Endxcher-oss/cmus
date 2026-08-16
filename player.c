@@ -650,7 +650,17 @@ static void _producer_play(void)
 				track_info_unref(ti);
 				file_changed(NULL);
 			} else {
+				struct keyval *comments = NULL;
+
 				ip_setup(ip);
+				/* Make sure album art (and other metadata) is read before
+				 * the track is announced, so MPRIS never exposes a track
+				 * without its cover on the first play. */
+				if (!ip_is_remote(ip) && ip_read_comments(ip, &comments) == 0) {
+					if (ti->comments)
+						keyvals_free(ti->comments);
+					track_info_set_comments(ti, comments);
+				}
 				_producer_status_update(PS_PLAYING);
 				file_changed(ti);
 			}
