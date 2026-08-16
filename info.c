@@ -138,7 +138,8 @@ static int info_is_core_key(const char *key)
 		!strcasecmp(key, "date") ||
 		!strcasecmp(key, "tracknumber") ||
 		!strcasecmp(key, "discnumber") ||
-		!strcasecmp(key, "comment");
+		!strcasecmp(key, "comment") ||
+		!strcasecmp(key, "albumart");
 }
 
 void info_refresh_if_changed(void)

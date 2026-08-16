@@ -24,6 +24,7 @@
 #include "../config/tremor.h"
 #endif
 #include "../comment.h"
+#include "../misc.h"
 
 #ifdef CONFIG_TREMOR
 #include <tremor/ivorbisfile.h>
@@ -296,6 +297,7 @@ static int vorbis_read_comments(struct input_plugin_data *ip_data,
 	GROWING_KEYVALS(c);
 	struct vorbis_private *priv;
 	vorbis_comment *vc;
+	const char *apic = NULL;
 	int i;
 
 	priv = ip_data->private;
@@ -316,9 +318,19 @@ static int vorbis_read_comments(struct input_plugin_data *ip_data,
 		}
 
 		key = xstrndup(str, eq - str);
-		comments_add_const(&c, key, eq + 1);
+		if (!strcmp(key, "METADATA_BLOCK_PICTURE"))
+			apic = eq + 1;
+		else
+			comments_add_const(&c, key, eq + 1);
 		free(key);
 	}
+
+	if (apic) {
+		char *path = albumart_save_base64(ip_data->filename, apic);
+		if (path)
+			comments_add(&c, "albumart", path);
+	}
+
 	keyvals_terminate(&c);
 	*comments = c.keyvals;
 	return 0;

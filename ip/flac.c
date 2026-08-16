@@ -21,6 +21,7 @@
 #include "../xmalloc.h"
 #include "../debug.h"
 #include "../utils.h"
+#include "../misc.h"
 
 #include <FLAC/export.h>
 #include <FLAC/stream_decoder.h>
@@ -58,6 +59,7 @@ struct flac_private {
 	unsigned int buf_rpos;
 
 	struct keyval *comments;
+	FLAC__StreamMetadata *apic;
 	double duration;
 	long bitrate;
 	int bps;
@@ -248,6 +250,10 @@ static void metadata_cb(const Dec *dec, const FLAC__StreamMetadata *metadata, vo
 			priv->comments = c.keyvals;
 		}
 		break;
+	case FLAC__METADATA_TYPE_PICTURE:
+		if (!priv->apic)
+			priv->apic = FLAC__metadata_object_clone(metadata);
+		break;
 	default:
 		break;
 	}
@@ -267,6 +273,8 @@ static void free_priv(struct input_plugin_data *ip_data)
 	F(delete)(priv->dec);
 	if (priv->comments)
 		keyvals_free(priv->comments);
+	if (priv->apic)
+		FLAC__metadata_object_delete(priv->apic);
 	free(priv->buf);
 	free(priv);
 	ip_data->private = NULL;
@@ -336,7 +344,8 @@ static int flac_open(struct input_plugin_data *ip_data)
 		.dec      = dec,
 		.duration = -1,
 		.bitrate  = -1,
-		.bps      = 0
+		.bps      = 0,
+		.apic     = NULL
 	};
 
 	if (!dec)
@@ -402,6 +411,30 @@ static int flac_open(struct input_plugin_data *ip_data)
 			sf_get_rate(ip_data->sf),
 			channels,
 			bits);
+
+	if (priv->apic) {
+		GROWING_KEYVALS(c);
+		char *path;
+
+		if (priv->comments)
+			keyvals_init(&c, priv->comments);
+
+		path = albumart_save_data(ip_data->filename,
+				priv->apic->data.picture.data,
+				priv->apic->data.picture.data_length);
+		if (path)
+			comments_add(&c, "albumart", path);
+
+		keyvals_terminate(&c);
+		if (priv->comments) {
+			keyvals_free(priv->comments);
+			priv->comments = NULL;
+		}
+		priv->comments = c.keyvals;
+		FLAC__metadata_object_delete(priv->apic);
+		priv->apic = NULL;
+	}
+
 	return 0;
 }
 

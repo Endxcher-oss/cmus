@@ -31,6 +31,12 @@
 #include "utils.h"
 #include "uchar.h"
 #include "path.h"
+#include "misc.h"
+#include "xmalloc.h"
+#include "xstrjoin.h"
+
+#include <sys/stat.h>
+#include <errno.h>
 
 #define CK(v) \
 do { \
@@ -363,6 +369,66 @@ static int mpris_msg_append_sas_dict(sd_bus_message *m, const char *a,
 	return 0;
 }
 
+static int mpris_append_art_url(sd_bus_message *reply, const char *path)
+{
+	size_t len = strlen(path);
+	char *uri = xnew(char, 3 * len + 1);
+	char *url;
+	int rc;
+
+	uri_encode(path, len, uri);
+	url = xstrjoin("file://", uri);
+	free(uri);
+	rc = mpris_msg_append_ss_dict(reply, "mpris:artUrl", url);
+	free(url);
+	return rc;
+}
+
+static int mpris_find_sidecar_art(const char *filename, char **path)
+{
+	static const char * const names[] = {
+		"cover.jpg", "cover.jpeg", "cover.png", "cover.webp",
+		"front.jpg", "front.jpeg", "front.png", "front.webp",
+		"folder.jpg", "folder.jpeg", "folder.png", "folder.webp",
+		"album.jpg", "album.jpeg", "album.png", "album.webp", NULL
+	};
+	char *dir = path_dirname(filename);
+	int i;
+
+	for (i = 0; names[i]; i++) {
+		char *candidate = xstrjoin(dir, "/", names[i]);
+		struct stat st;
+
+		if (stat(candidate, &st) == 0 && S_ISREG(st.st_mode)) {
+			*path = path_absolute(candidate);
+			free(candidate);
+			free(dir);
+			return 1;
+		}
+		free(candidate);
+	}
+	free(dir);
+	return 0;
+}
+
+static int mpris_append_art_fallback(sd_bus_message *reply,
+		struct track_info *ti)
+{
+	char *art = albumart_cached_path(ti->filename);
+
+	if (art) {
+		int rc = mpris_append_art_url(reply, art);
+		free(art);
+		return rc;
+	}
+	if (mpris_find_sidecar_art(ti->filename, &art)) {
+		int rc = mpris_append_art_url(reply, art);
+		free(art);
+		return rc;
+	}
+	return 0;
+}
+
 static int mpris_metadata(sd_bus *_bus, const char *_path,
 		const char *_interface, const char *_property,
 		sd_bus_message *reply, void *_userdata,
@@ -435,6 +501,29 @@ static int mpris_metadata(sd_bus *_bus, const char *_path,
 		if (is_http_url(ti->filename))
 			CK(mpris_msg_append_ss_dict(reply, "cmus:stream_title",
 						get_stream_title()));
+
+		if (!is_url(ti->filename)) {
+			char *abs = path_absolute(ti->filename);
+			char *uri = xnew(char, 3 * strlen(abs) + 1);
+			char *url;
+
+			uri_encode(abs, strlen(abs), uri);
+			url = xstrjoin("file://", uri);
+			free(uri);
+			free(abs);
+			CK(mpris_msg_append_ss_dict(reply, "xesam:url", url));
+			free(url);
+
+			if (ti->albumart) {
+				struct stat st;
+				if (stat(ti->albumart, &st) == 0 && S_ISREG(st.st_mode))
+					CK(mpris_append_art_url(reply, ti->albumart));
+				else
+					CK(mpris_append_art_fallback(reply, ti));
+			} else {
+				CK(mpris_append_art_fallback(reply, ti));
+			}
+		}
 	}
 
 	CK(sd_bus_message_close_container(reply));
@@ -519,10 +608,16 @@ out:
 		bus = NULL;
 		mpris_fd = -1;
 
-		const char *msg = "an error occurred while initializing "
-			          "MPRIS: %s. MPRIS will be disabled.";
+		if (res == -EEXIST) {
+			error_msg("MPRIS service name is already in use "
+					"(another cmus instance is running). "
+					"MPRIS will be disabled.");
+		} else {
+			const char *msg = "an error occurred while initializing "
+				          "MPRIS: %s. MPRIS will be disabled.";
 
-		error_msg(msg, strerror(-res));
+			error_msg(msg, strerror(-res));
+		}
 	}
 }
 

@@ -24,6 +24,7 @@
 #include "debug.h"
 #include "utils.h"
 #include "file.h"
+#include "misc.h"
 
 #include <unistd.h>
 #include <stdint.h>
@@ -266,6 +267,7 @@ const char * const id3_key_names[NUM_ID3_KEYS] = {
 	"media",
 	"bpm",
 	"lyrics",
+	"albumart",
 };
 
 static int utf16_is_lsurrogate(uchar uch)
@@ -1007,6 +1009,37 @@ static void decode_ufid(struct id3tag *id3, const char *buf, int len)
 	add_v2(id3, ID3_MUSICBRAINZ_TRACKID, ufid);
 }
 
+static void decode_apic(struct id3tag *id3, const char *buf, int len, int encoding)
+{
+	size_t slen;
+
+	if (id3->apic)
+		return;
+
+	/* skip MIME type */
+	slen = id3_skiplen(buf, len, encoding);
+	if (slen >= len)
+		return;
+	buf += slen;
+	len -= slen;
+
+	/* skip Picture type */
+	if (len < 1)
+		return;
+	buf++;
+	len--;
+
+	/* skip Description */
+	slen = id3_skiplen(buf, len, encoding);
+	if (slen >= len)
+		return;
+	buf += slen;
+	len -= slen;
+
+	id3->apic = xnew(char, len);
+	memcpy(id3->apic, buf, len);
+	id3->apic_len = len;
+}
 
 static void v2_add_frame(struct id3tag *id3, struct v2_frame_header *fh, const char *buf)
 {
@@ -1037,6 +1070,8 @@ static void v2_add_frame(struct id3tag *id3, struct v2_frame_header *fh, const c
 		decode_comment(id3, buf, len, encoding);
 	} else if (!strncmp(fh->id, "COM", 3)) {
 		decode_comment(id3, buf, len, encoding);
+	} else if (!strncmp(fh->id, "APIC", 4)) {
+		decode_apic(id3, buf, len, encoding);
 	} else if (!strncmp(fh->id, "USLT", 4)) {
 		decode_lyrics(id3, buf, len, encoding);
 	}
@@ -1181,11 +1216,21 @@ void id3_free(struct id3tag *id3)
 {
 	int i;
 
+	free(id3->apic);
 	for (i = 0; i < NUM_ID3_KEYS; i++)
 		free(id3->v2[i]);
 }
 
-int id3_read_tags(struct id3tag *id3, int fd, unsigned int flags)
+static void add_apic(struct id3tag *id3, const char *filepath)
+{
+	char *path = albumart_save_data(filepath, id3->apic, id3->apic_len);
+
+	if (!path)
+		return;
+	add_v2(id3, ID3_APIC, path);
+}
+
+int id3_read_tags(struct id3tag *id3, int fd, unsigned int flags, const char *filepath)
 {
 	off_t off;
 	int rc;
@@ -1235,7 +1280,7 @@ int id3_read_tags(struct id3tag *id3, int fd, unsigned int flags)
 				if (rc)
 					goto rc_error;
 			}
-			return 0;
+			goto out;
 		}
 	}
 	if (flags & ID3_V1) {
@@ -1247,6 +1292,9 @@ int id3_read_tags(struct id3tag *id3, int fd, unsigned int flags)
 			goto rc_error;
 		id3->has_v1 = is_v1(id3->v1);
 	}
+out:
+	if (id3->apic)
+		add_apic(id3, filepath);
 	return 0;
 error:
 	rc = -1;

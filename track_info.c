@@ -60,6 +60,7 @@ struct track_info *track_info_new(const char *filename)
 	ti->codec = NULL;
 	ti->codec_profile = NULL;
 	ti->output_gain = 0;
+	ti->albumart = NULL;
 
 	return ti;
 }
@@ -85,6 +86,7 @@ void track_info_set_comments(struct track_info *ti, struct keyval *comments) {
 	ti->albumsort = keyvals_get_val(comments, "albumsort");
 	ti->is_va_compilation = track_is_va_compilation(comments);
 	ti->media = keyvals_get_val(comments, "media");
+	ti->albumart = keyvals_get_val(comments, "albumart");
 
 	const char *bitrate_str = keyvals_get_val(comments, "bitrate");
 	if (bitrate_str) {

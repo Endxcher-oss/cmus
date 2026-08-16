@@ -26,6 +26,7 @@
 #endif
 #include "../comment.h"
 #include "../utils.h"
+#include "../misc.h"
 #include "aac.h"
 
 #if USE_MPEG4IP
@@ -587,6 +588,12 @@ static int mp4_read_comments(struct input_plugin_data *ip_data,
 		char buf[6];
 		snprintf(buf, 6, "%u", *tags->tempo);
 		comments_add_const(&c, "bpm", buf);
+	}
+	if (tags->artwork) {
+		char *path = albumart_save_data(ip_data->filename,
+				tags->artwork->data, tags->artwork->size);
+		if (path)
+			comments_add(&c, "albumart", path);
 	}
 
 	MP4TagsFree(tags);

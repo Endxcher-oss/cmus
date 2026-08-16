@@ -21,6 +21,7 @@
 #include "../debug.h"
 #include "../utils.h"
 #include "../comment.h"
+#include "../misc.h"
 #ifdef HAVE_CONFIG
 #include "../config/ffmpeg.h"
 #endif
@@ -468,10 +469,20 @@ static int ffmpeg_read_comments(struct input_plugin_data *ip_data,
 	AVFormatContext *ic = priv->format_ctx;
 
 	GROWING_KEYVALS(c);
+	AVPacket *albumart = NULL;
 
 	ffmpeg_read_metadata(&c, ic->metadata);
 	for (unsigned i = 0; i < ic->nb_streams; i++) {
 		ffmpeg_read_metadata(&c, ic->streams[i]->metadata);
+		if (!albumart && (ic->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC))
+			albumart = &ic->streams[i]->attached_pic;
+	}
+
+	if (albumart) {
+		char *path = albumart_save_data(ip_data->filename,
+				albumart->data, albumart->size);
+		if (path)
+			comments_add(&c, "albumart", path);
 	}
 
 	keyvals_terminate(&c);

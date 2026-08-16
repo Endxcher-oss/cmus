@@ -27,6 +27,7 @@ extern const char *cmus_socket_path;
 extern const char *cmus_data_dir;
 extern const char *cmus_lib_dir;
 extern const char *home_dir;
+extern const char *cmus_albumart_dir;
 
 char **get_words(const char *text);
 int strptrcmp(const void *a, const void *b);
@@ -50,5 +51,22 @@ int replaygain_decode(unsigned int field, int *gain);
 
 char *expand_filename(const char *name);
 void shuffle_array(void *array, size_t n, size_t size);
+
+/* URI-encode @src (len bytes) into @dst, which must be at least 3*len+1 bytes.
+ * Leaves '/' unencoded so file paths remain readable in file:// URIs. */
+size_t uri_encode(const char *src, size_t len, char *dst);
+
+/* Save embedded album art to the albumart cache directory. @filename is the
+ * audio file the art came from; it is only used to derive a stable cache name.
+ * Returns an allocated path on success, or NULL on failure. */
+char *albumart_save_data(const char *filename, const void *data, size_t len);
+
+/* Return the cached albumart path for @filename if the file already exists,
+ * otherwise NULL. Useful when the in-memory/cached track metadata is stale. */
+char *albumart_cached_path(const char *filename);
+
+/* Decode a Vorbis/Opus METADATA_BLOCK_PICTURE value (base64 FLAC picture
+ * block) and save the embedded image. Returns an allocated path or NULL. */
+char *albumart_save_base64(const char *filename, const char *encoded);
 
 #endif

@@ -21,6 +21,7 @@
 #include "../read_wrapper.h"
 #include "../debug.h"
 #include "../comment.h"
+#include "../misc.h"
 
 #include <opusfile.h>
 
@@ -233,6 +234,7 @@ static int opus_read_comments(struct input_plugin_data *ip_data,
 	struct opus_private *priv;
 	const OpusTags *ot;
 	const OpusHead *head;
+	const char *apic = NULL;
 	int i;
 
 	priv = ip_data->private;
@@ -264,9 +266,19 @@ static int opus_read_comments(struct input_plugin_data *ip_data,
 		}
 
 		key = xstrndup(str, eq - str);
-		comments_add_const(&c, key, eq + 1);
+		if (!strcmp(key, "METADATA_BLOCK_PICTURE"))
+			apic = eq + 1;
+		else
+			comments_add_const(&c, key, eq + 1);
 		free(key);
 	}
+
+	if (apic) {
+		char *path = albumart_save_base64(ip_data->filename, apic);
+		if (path)
+			comments_add(&c, "albumart", path);
+	}
+
 	keyvals_terminate(&c);
 	*comments = c.keyvals;
 	return 0;
