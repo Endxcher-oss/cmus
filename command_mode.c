@@ -65,7 +65,7 @@ static int mute_vol_l = 0, mute_vol_r = 0;
 
 /* view {{{ */
 
-void view_clear(int view)
+void view_clear(int view, int explicit_view)
 {
 	switch (view) {
 	case TREE_VIEW:
@@ -77,7 +77,10 @@ void view_clear(int view)
 		lib_clear_store();
 		break;
 	case PLAYLIST_VIEW:
-		pl_clear();
+		if (explicit_view)
+			pl_clear_marked_pl();
+		else
+			pl_clear_selected_pl();
 		break;
 	case QUEUE_VIEW:
 		worker_remove_jobs_by_type(JOB_TYPE_QUEUE);
@@ -382,7 +385,7 @@ static void cmd_clear(char *arg)
 		error_msg("too many arguments\n");
 		return;
 	}
-	view_clear(flag_to_view(flag));
+	view_clear(flag_to_view(flag), flag != 0);
 }
 
 static void cmd_load(char *arg)
@@ -3216,10 +3219,10 @@ void commands_init(void)
 
 void commands_exit(void)
 {
-	view_clear(TREE_VIEW);
-	view_clear(SORTED_VIEW);
-	view_clear(PLAYLIST_VIEW);
-	view_clear(QUEUE_VIEW);
+	view_clear(TREE_VIEW, 1);
+	view_clear(SORTED_VIEW, 1);
+	view_clear(PLAYLIST_VIEW, 1);
+	view_clear(QUEUE_VIEW, 1);
 	history_save(&cmd_history);
 	history_free(&cmd_history);
 	free(cmd_history_filename);
