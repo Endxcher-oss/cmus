@@ -41,6 +41,7 @@
 #include "debug.h"
 #include "discid.h"
 #include "mpris.h"
+#include "inhibit.h"
 #ifdef HAVE_CONFIG
 #include "config/curses.h"
 #endif
@@ -90,6 +91,7 @@ int auto_mark_selected_playlist = 0;
 int show_all_tracks = 1;
 int mouse = 0;
 int mpris = 1;
+int sleep_inhibit = 1;
 int time_show_leading_zero = 1;
 int start_view = TREE_VIEW;
 int stop_after_queue = 0;
@@ -1325,6 +1327,24 @@ static void toggle_mpris(void *data)
 	mpris ^= 1;
 }
 
+static void get_sleep_inhibit(void *data, char *buf, size_t size)
+{
+	strscpy(buf, bool_names[sleep_inhibit], size);
+}
+
+static void set_sleep_inhibit(void *data, const char *buf)
+{
+	if (!parse_bool(buf, &sleep_inhibit))
+		return;
+	inhibit_update(player_info.status);
+}
+
+static void toggle_sleep_inhibit(void *data)
+{
+	sleep_inhibit ^= 1;
+	inhibit_update(player_info.status);
+}
+
 static void get_time_show_leading_zero(void *data, char *buf, size_t size)
 {
 	strscpy(buf, bool_names[time_show_leading_zero], size);
@@ -1713,6 +1733,7 @@ static const struct {
 	DT(ignore_duplicates)
 	DT(mouse)
 	DT(mpris)
+	DT(sleep_inhibit)
 	DT(time_show_leading_zero)
 	DN(lib_add_filter)
 	DN(start_view)

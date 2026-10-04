@@ -26,6 +26,7 @@ command_mode.o input.o main.o ui_curses.o op/pulse.lo: CFLAGS += -DVERSION=\"$(V
 main.o server.o: CFLAGS += -DDEFAULT_PORT=3000
 discid.o: CFLAGS += $(DISCID_CFLAGS)
 mpris.o: CFLAGS += $(LIBSYSTEMD_CFLAGS)
+inhibit.o: CFLAGS += $(LIBSYSTEMD_CFLAGS)
 
 .version: Makefile
 	@test "`cat $@ 2> /dev/null`" = "$(VERSION)" && exit 0; \
@@ -42,6 +43,7 @@ cmus-y := \
 	track.o tree.o uchar.o u_collate.o ui_curses.o window.o worker.o xstrjoin.o
 
 cmus-$(CONFIG_MPRIS)   += mpris.o
+cmus-$(CONFIG_INHIBIT) += inhibit.o
 cmus-$(CONFIG_OPENSSL) += ssl.o
 
 $(cmus-y): CFLAGS += $(PTHREAD_CFLAGS) $(NCURSES_CFLAGS) $(ICONV_CFLAGS) $(DL_CFLAGS) $(OPENSSL_CFLAGS)

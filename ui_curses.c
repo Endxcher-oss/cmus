@@ -50,6 +50,7 @@
 #include "path.h"
 #include "mixer.h"
 #include "mpris.h"
+#include "inhibit.h"
 #include "locking.h"
 #include "pl_env.h"
 #include "lyrics.h"
@@ -2089,8 +2090,10 @@ static void update(void)
 			info_update(win_w);
 	}
 
-	if (player_info.status_changed)
+	if (player_info.status_changed) {
 		mpris_playback_status_changed();
+		inhibit_update(player_info.status);
+	}
 
 	if (player_info.file_changed || player_info.metadata_changed)
 		mpris_metadata_changed();
@@ -2691,6 +2694,7 @@ static void exit_all(void)
 	info_exit();
 	browser_exit();
 	mpris_free();
+	inhibit_free();
 }
 
 enum {

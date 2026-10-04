@@ -1281,6 +1281,26 @@ skip_track_info (false)
 	system and having huge amount of files. Tags can be loaded using
 	'update-cache' or 'win-update-cache' commands.
 
+sleep_inhibit (true)
+	Inhibit system suspend while a track is playing.  The lock is released as
+	soon as playback is paused or stopped, and never survives cmus.
+
+	The screen is deliberately left alone: it still blanks and locks
+	according to the desktop's power settings, only going to sleep is
+	postponed until playback stops.
+
+	On systemd/elogind systems the inhibitor is registered with logind (the
+	"sleep" class).  Systems without logind fall back to the
+	*org.freedesktop.ScreenSaver* D-Bus interface; note that this interface
+	usually keeps the screen from blanking and locking as well, so this
+	fallback is broader than logind.
+
+	Note: KDE Plasma applies the inhibitor to its own power management a few
+	seconds after it has been taken, so checking immediately may still show
+	an uninhibited session.
+
+	Note: This flag has no effect if cmus was compiled without D-Bus support.
+
 softvol (false)
 	Use software volume control.
 

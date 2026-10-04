@@ -174,6 +174,7 @@ extern int skip_track_info;
 extern int ignore_duplicates;
 extern int mouse;
 extern int mpris;
+extern int sleep_inhibit;
 extern int time_show_leading_zero;
 extern int start_view;
 extern int stop_after_queue;

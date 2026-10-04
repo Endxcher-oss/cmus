@@ -340,9 +340,19 @@ check_vorbis()
 check_libsystemd()
 {
 	pkg_config LIBSYSTEMD "libsystemd" || pkg_config LIBSYSTEMD "libelogind >= 239.3" || {
-		pkg_config LIBSYSTEMD "basu" && CFLAGS="${CFLAGS} -DCONFIG_MPRIS_BASU"
+		pkg_config LIBSYSTEMD "basu" && CFLAGS="${CFLAGS} -DCONFIG_MPRIS_BASU -DCONFIG_SDBUS_BASU"
 	}
 	return $?
+}
+
+check_inhibit()
+{
+	if test "$CONFIG_MPRIS" = y
+	then
+		# libsystemd is already available and linked
+		return 0
+	fi
+	check_libsystemd
 }
 
 check_opus()
@@ -592,6 +602,7 @@ Optional Features: y/n
   CONFIG_DISCID         libdiscid CDDA identification                   [auto]
   CONFIG_FFMPEG         FFMPEG (.shn, .wma)                             [auto]
   CONFIG_FLAC           Free Lossless Audio Codec (.flac, .fla)         [auto]
+  CONFIG_INHIBIT        Inhibit suspend while playing                    [auto]
   CONFIG_JACK           JACK                                            [auto]
   CONFIG_MAD            MPEG Audio Decoder (.mp3, .mp2, streams)        [auto]
   CONFIG_MIKMOD         libmikmod (.mod, .x3m, ...)                     [n]
@@ -666,6 +677,7 @@ check check_mpc        CONFIG_MPC
 check check_vorbis     CONFIG_VORBIS
 check check_opus       CONFIG_OPUS
 check check_libsystemd CONFIG_MPRIS
+check check_inhibit    CONFIG_INHIBIT
 check check_wavpack    CONFIG_WAVPACK
 check check_mp4        CONFIG_MP4
 check check_aac        CONFIG_AAC
@@ -706,6 +718,7 @@ LIBDIR="$libdir"
 
 config_header config/cdio.h HAVE_CDDB
 config_header config/mpris.h CONFIG_MPRIS
+config_header config/inhibit.h CONFIG_INHIBIT
 config_header config/openssl.h CONFIG_OPENSSL
 config_header config/datadir.h DATADIR
 config_header config/libdir.h LIBDIR
@@ -728,6 +741,7 @@ makefile_vars bindir datadir libdir mandir docdir exampledir
 makefile_vars \
 	CONFIG_AAC CONFIG_ALSA CONFIG_AO CONFIG_ARTS CONFIG_CDIO \
 	CONFIG_COREAUDIO CONFIG_CUE CONFIG_FFMPEG CONFIG_FLAC CONFIG_JACK \
+	CONFIG_INHIBIT \
 	CONFIG_MAD CONFIG_MIKMOD CONFIG_MODPLUG CONFIG_MP4 CONFIG_MPC \
 	CONFIG_MPRIS CONFIG_OPUS CONFIG_OSS CONFIG_PULSE CONFIG_ROAR \
 	CONFIG_SAMPLERATE CONFIG_SNDIO CONFIG_OPENSSL CONFIG_SUN CONFIG_VORBIS \
